@@ -1,29 +1,40 @@
-# *trRosetta*
-This package is a part of ***trRosetta*** protein structure prediction protocol developed in: [Improved protein structure prediction using predicted inter-residue orientations](https://www.biorxiv.org/content/10.1101/846279v1). It includes tools to predict protein inter-residue geometries from a multiple sequence alignment or a single sequence.
+# *Pytorch trRosetta*
 
+This package is a fork of ***trRosetta***, the current state of the art protein structure prediction protocol developed in: [Improved protein structure prediction using predicted inter-residue orientations](https://www.biorxiv.org/content/10.1101/846279v1). 
 
-Contact: Ivan Anishchenko, aivan@uw.edu
+It was rewritten in Pytorch in order to make the code more extendable and for eventually providing embeddings from the pre-trained models.
 
+The link to the original repository is [here](https://github.com/gjoni/trRosetta)
 
 ## Requirements
-```tensorflow``` (tested on versions ```1.13``` and ```1.14```)
+
+```pytorch```
+```fire```
+
+
+`> pip install -r requirements`
 
 ## Download
 
+# download repository
 ```
-# download package
-git clone https://github.com/gjoni/trRosetta
-cd trRosetta
+> git clone https://github.com/lucidrains/trRosetta
+> cd trRosetta
+```
 
-# download pre-trained network
-wget https://files.ipd.uw.edu/pub/trRosetta/model2019_07.tar.bz2
-tar xf model2019_07.tar.bz2
+# unzip the compressed model file
+```
+> tar xvf models.tar.gz
 ```
 
 ## Usage
+
+After unzipping all the current model files, simply run the predict command with the first argument pointing at the amino acid sequence file, the compressed numpy array containing the ensemble predicted inter-residue distances and angles will be saved to the directory of the input file.
+
 ```
-python ./network/predict.py -m ./model2019_07 example/T1001.a3m example/T1001.npz
+python predict.py ./T1001.a3m
 ```
+
 
 ## Links
 
@@ -33,4 +44,15 @@ python ./network/predict.py -m ./model2019_07 example/T1001.a3m example/T1001.np
 
 
 ## References
-J Yang, I Anishchenko, H Park, Z Peng, S Ovchinnikov, D Baker. Improved protein structure prediction using predicted inter-residue orientations. (2019) Submitted 
+
+@article {Yang846279,
+  author = {Yang, Jianyi and Anishchenko, Ivan and Park, Hahnbeom and Peng, Zhenling and Ovchinnikov, Sergey and Baker, David},
+  title = {Improved protein structure prediction using predicted inter-residue orientations},
+  elocation-id = {846279},
+  year = {2019},
+  doi = {10.1101/846279},
+  publisher = {Cold Spring Harbor Laboratory},
+  URL = {https://www.biorxiv.org/content/early/2019/11/18/846279},
+  eprint = {https://www.biorxiv.org/content/early/2019/11/18/846279.full.pdf},
+  journal = {bioRxiv}
+}
