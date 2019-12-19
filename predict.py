@@ -1,7 +1,4 @@
-import os, sys
-import json
 import string
-
 import fire
 from pathlib import Path
 
@@ -17,26 +14,32 @@ def d(tensor=None):
         return 'cuda' if torch.cuda.is_available() else 'cpu'
     return 'cuda' if tensor.is_cuda else 'cpu'
 
-
 # preprocessing fn
 
+# read A3M and convert letters into
+# integers in the 0..20 range
 def parse_a3m(filename):
     table = str.maketrans(dict.fromkeys(string.ascii_lowercase))
     seqs = [line.strip().translate(table) for line in open(filename, 'r') if line[0] != '>']
     alphabet = np.array(list("ARNDCQEGHILKMFPSTWYV-"), dtype='|S1').view(np.uint8)
     msa = np.array([list(s) for s in seqs], dtype='|S1').view(np.uint8)
 
+    # convert letters into numbers
     for i in range(alphabet.shape[0]):
         msa[msa == alphabet[i]] = i
+
+    # treat all unknown characters as gaps
     msa[msa > 20] = 20
     return msa
 
+# 1-hot MSA to PSSM
 def msa2pssm(msa1hot, w):
     beff = w.sum()
     f_i = (w[:, None, None] * msa1hot).sum(dim=0) / beff + 1e-9
     h_i = (-f_i * torch.log(f_i)).sum(dim=1)
     return torch.cat((f_i, h_i[:, None]), dim=1)
 
+# reweight MSA based on cutoff
 def reweight(msa1hot, cutoff):
     id_min = msa1hot.shape[1] * cutoff
     id_mtx = torch.einsum('ikl,jkl->ij', msa1hot, msa1hot)
@@ -44,6 +47,7 @@ def reweight(msa1hot, cutoff):
     w = 1. / id_mask.float().sum(dim=-1)
     return w
 
+# shrunk covariance inversion
 def fast_dca(msa1hot, weights, penalty = 4.5):
     device = msa1hot.device
     nr, nc, ns = msa1hot.shape
@@ -93,8 +97,7 @@ def preprocess(msa_file, wmin=0.8, ns=21):
     ), dim=-1)
 
     f2d = f2d.view(1, ncol, ncol, 442 + 2*42)
-
-    return f2d
+    return f2d.permute((0, 3, 2, 1))
 
 # model code
 
@@ -121,6 +124,7 @@ class trRosettaNetwork(nn.Module):
             elu()
         )
 
+        # stack of residual blocks with dilations
         cycle_dilations = [1, 2, 4, 8, 16]
         dilations = [cycle_dilations[i % len(cycle_dilations)] for i in range(num_layers)]
 
@@ -135,6 +139,7 @@ class trRosettaNetwork(nn.Module):
 
         self.activate = elu()
 
+        # conv to anglegrams and distograms
         self.to_prob_theta = nn.Sequential(conv2d(filters, 25, 1), nn.Softmax())
         self.to_prob_phi = nn.Sequential(conv2d(filters, 13, 1), nn.Softmax())
         self.to_distance = nn.Sequential(conv2d(filters, 37, 1), nn.Softmax())
@@ -142,22 +147,20 @@ class trRosettaNetwork(nn.Module):
         self.to_prob_omega = nn.Sequential(conv2d(filters, 25, 1), nn.Softmax())
  
     def forward(self, x):
-        b, w, h, c = x.shape
-        x = x.permute((0, 3, 2, 1))
         x = self.first_block(x)
 
         for layer in self.layers:
             x = self.activate(x + layer(x))
+        
+        prob_theta = self.to_prob_theta(x)      # anglegrams for theta
+        prob_phi = self.to_prob_phi(x)          # anglegrams for phi
 
-        post_loop_output = x
-        prob_theta = self.to_prob_theta(x)
-        prob_phi = self.to_prob_phi(x)
+        x = 0.5 * (x + x.permute((0,1,3,2)))    # symmetrize
 
-        x = 0.5 * (x + x.permute((0,1,3,2)))
+        prob_distance = self.to_distance(x)     # distograms
+        prob_bb = self.to_prob_bb(x)            # beta-strand pairings (not used)
+        prob_omega = self.to_prob_omega(x)      # anglegrams for omega
 
-        prob_distance = self.to_distance(x)
-        prob_bb = self.to_prob_bb(x)
-        prob_omega = self.to_prob_omega(x)
         return prob_theta, prob_phi, prob_distance, prob_omega
 
 # cli function for ensemble prediction with pre-trained network
