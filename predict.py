@@ -1,4 +1,5 @@
 import string
+import time
 import fire
 from pathlib import Path
 
@@ -89,6 +90,7 @@ def preprocess(msa_file, wmin=0.8, ns=21):
 
     f2d_dca = fast_dca(msa1hot, w) if nrow > 1 else torch.zeros((ncol, ncol, 442)).float()
     f2d_dca = f2d_dca[None, :, :, :]
+    f2d_dca = f2d_dca.to(d())
 
     f2d = torch.cat((
         f1d[:, :, None, :].repeat(1, 1, ncol, 1), 
@@ -174,12 +176,14 @@ def get_ensembled_predictions(input_file, output_file=None, model_dir='./'):
         input_path = Path(input_file)
         output_file = f'{input_path.parents[0] / input_path.stem}.npz'
 
-    outputs = []
     model_files = [*Path(model_dir).glob('*.pt')]
 
     if len(model_files) == 0:
         raise 'No model files can be found'
+    else:
+        print("Found %d different models that will be ensembled!" %len(model_files))
 
+    outputs = []
     for model_file in model_files:
         net.load_state_dict(torch.load(model_file, map_location=torch.device(d())))
         net.to(d()).eval()
