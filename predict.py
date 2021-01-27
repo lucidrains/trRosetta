@@ -187,7 +187,7 @@ def get_ensembled_predictions(input_file, output_file=None, model_dir='./'):
         outputs.append(output)
 
     averaged_outputs = [torch.stack(model_output).mean(dim=0).cpu().numpy() for model_output in zip(*outputs)]
-    output_dict = dict(zip(['dist', 'omega', 'theta', 'phi'], averaged_outputs))
+    output_dict = dict(zip(['theta', 'phi', 'dist', 'omega'], averaged_outputs))
     np.savez_compressed(output_file, **output_dict)
     print(f'predictions for {input_file} saved to {output_file}')
 
